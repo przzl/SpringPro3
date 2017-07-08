@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+       http://www.springframework.org/schema/context
+       http://www.springframework.org/schema/context/spring-context-3.1.xsd
+       http://www.springframework.org/schema/tx
+       http://www.springframework.org/schema/tx/spring-tx-3.1.xsd
+       http://www.springframework.org/schema/aop
+       http://www.springframework.org/schema/aop/spring-aop-3.1.xsd">
+    <!-- 扫描类包，将标注Spring注解的类自动转化Bean，同时完成Bean的注入 -->
+    <aop:aspectj-autoproxy/>
+    <!-- 扫描类包，将标注Spring注解的类自动转化Bean，同时完成Bean的注入 -->
+    <context:component-scan base-package="com.hzb.dao"/>
+    <context:component-scan base-package="com.hzb.service"/>
+
+     <!-- 配置数据源 -->
+    <bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource"
+          destroy-method="close"
+          p:driverClassName="com.mysql.jdbc.Driver"
+          p:url="jdbc:mysql://localhost:3306/SSH"
+          p:username="root"
+          p:password=""/>
+    <!-- 配置Jdbc模板  -->
+	<bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate"
+		p:dataSource-ref="dataSource" />
+
+     <!-- 配置一个sessionFactory，指定数据源、自动扫描包下带注解的实体类，设置Hibernate控制属性-->
+    <bean id="sessionFactory"
+          class="org.springframework.orm.hibernate3.annotation.AnnotationSessionFactoryBean"
+          p:dataSource-ref="dataSource">
+        <property name="packagesToScan" value="com.hzb.domain"/>
+        <property name="hibernateProperties">
+			<props>
+				<prop key="hibernate.dialect">
+					org.hibernate.dialect.MySQLDialect
+                </prop>
+				<prop key="hibernate.show_sql">
+					true
+                </prop>
+			</props>
+		</property>
+    </bean>
+    <!-- 配置 HibernateTempalte Bean -->
+    <bean id="hibernateTemplate"
+          class="org.springframework.orm.hibernate3.HibernateTemplate"
+          p:sessionFactory-ref="sessionFactory"/>
+
+    <!-- 配置事务管理器 -->
+	<bean id="transactionManager"
+		class="org.springframework.orm.hibernate3.HibernateTransactionManager"
+		p:sessionFactory-ref="sessionFactory" />
+
+    <!--通过AOP配置提供事务增强，让service包下所有Bean的所有方法拥有事务 -->
+    <aop:config>
+        <!--①通过aop定义事务增强切面-->
+        <aop:pointcut id="serviceMethod" expression="execution(* com.hzb.service.*Service.*(..))"/>
+        <!--②引用事务增强-->
+        <aop:advisor pointcut-ref="serviceMethod" advice-ref="txAdvice"/>
+    </aop:config>
+
+    <!--事务增强-->
+    <tx:advice id="txAdvice" transaction-manager="transactionManager">
+        <!--①事务属性定义-->
+        <tx:attributes>
+            <!--②为find开头的方法设置为只读事务,注意：这种方法里面不能够再有写的操作，否则会抛异常-->
+            <tx:method name="find*" read-only="true"/>
+            <!--②为add开头的方法在发生Exception异常或者Exception子类异常时回滚-->
+            <tx:method name="add*" rollback-for="Exception" />
+            <!--③为update开头的方法设置事务-->
+            <tx:method name="update*"/>
+        </tx:attributes>
+    </tx:advice>
+</beans>
